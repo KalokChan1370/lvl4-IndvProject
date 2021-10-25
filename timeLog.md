@@ -1,6 +1,6 @@
 # Timelog
 
-* PROJECT NAME
+* Type Checker for Dynamic Languages
 * Kalok Chan
 * 2388188c
 * Peter Inglis
@@ -48,3 +48,4 @@
 ### 25/10/21
 * **0.5 hours** Accessing the template and reading through the files
 * **0.5 hours** Reformatting the timelog
+* **1 hour** Setting up repository

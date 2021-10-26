@@ -13,11 +13,13 @@
 * Follow the structure provided, grouping time by weeks.  Quantise time to the half hour.
 
 ## Week 1 
+
 ### 1/10/21
 * *1.5 hours* Read the project guidence notes
 * *0.5 hours* Meeting with supervisor 
 
 ## Week 2
+
 ### 6/10/21 
 * **2 hours** Read some Type Checker literatures
 ### 7/10/21 
@@ -25,6 +27,7 @@
 * **2 hours** Made summaries of the literatures
 
 ## Week 3
+
 ### 11/10/21 
 * **0.5 hours** Constructed a rough timeline of project
 *  **0.5 hours** Summary of work done for supervisor as meeting was cancelled
@@ -34,6 +37,7 @@
 * **2 hours** Read about PEP 8 styling for python
 
 ## Week 4
+
 ### 18/10/21 
 * **1 hour** Created Draft of Specification
 ### 19/10/21
@@ -45,7 +49,11 @@
 * **1 hour** Program outline ie possible functions, variables etc
 
 ## Week 5
+
 ### 25/10/21
 * **0.5 hours** Accessing the template and reading through the files
 * **0.5 hours** Reformatting the timelog
 * **1 hour** Setting up repository
+### 26/10/21
+* **0.5 hours** Learning about ast.literal_eval()
+* **2 hours** Started the program and have the basic variable assignment checking with regex

@@ -57,3 +57,5 @@
 ### 26/10/21
 * **0.5 hours** Learning about ast.literal_eval()
 * **5 hours** Started the program and have the basic variable assignment checking for duplicate variables
+### 27/10/21
+* **1.5 hours** Added simple data type check for calculations

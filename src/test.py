@@ -3,8 +3,11 @@ test = [1]
 test = 1.234
 test= "hey"
 calc = 2 + 2
+calc = 2.2 - 2
 equal = "hello"
 equal== test
+
+
 # Testing the # comment
 '''Testing docstring 
 comment style'''

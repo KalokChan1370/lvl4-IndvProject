@@ -56,4 +56,4 @@
 * **1 hour** Setting up repository
 ### 26/10/21
 * **0.5 hours** Learning about ast.literal_eval()
-* **2 hours** Started the program and have the basic variable assignment checking with regex
+* **5 hours** Started the program and have the basic variable assignment checking for duplicate variables

@@ -59,3 +59,9 @@
 * **5 hours** Started the program and have the basic variable assignment checking for duplicate variables
 ### 27/10/21
 * **1.5 hours** Added simple data type check for calculations
+
+## Week 6
+
+### 1/11/21
+* **3 hours** debugging the way comments are excluded and added a very clunky version of calculation checks
+* **0.5 hours** Preparing for meeting with supervisior

@@ -10,6 +10,8 @@ def equalCheck(data):
     print("equals")
 
 def calculationCheck(data):
+    print("calculation")
+    '''
     values = re.split('\s?(?:\+|\-)\s?', data[1])
     dataT1 = dataT2 = None
 
@@ -39,11 +41,13 @@ def calculationCheck(data):
         duplicateCheck(data)
     else :
         print("The Data type of the values for the calculation of", data[0], "do not match! Recommended to change them")
+    '''
 
 def compareCheck(key, data):
     dataT = variableDict[key]
     newDataT = type(ast.literal_eval(data[1]))
     if dataT == newDataT:
+        print("match variable updated")
         del variableDict[key]
         variableDict[data[0]] = newDataT 
     else:
@@ -105,7 +109,7 @@ with open ('test.py', 'r') as f:
                 variable = re.search('\w+\s?=\s?',line)
                 if variable != None:
                     data = re.split('\s?\+*\-*=\s?', line)
-                    #   for duplicate variables
+                    #   for code line of variable
                     data[0] = str(codeLine) +"-"+data[0] 
                     variableAssign(data)
         else:

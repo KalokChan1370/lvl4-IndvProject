@@ -4,26 +4,50 @@ import re
 variableDict = {}
 codeLine = 0
 arithmeticOp=["+","-","*","/","%","**","//"] 
-commentAnotations=["#","'''"]
 comment= False
 
 def equalCheck(data):
     print("equals")
 
 def calculationCheck(data):
+    print("calculation")
+    '''
     values = re.split('\s?(?:\+|\-)\s?', data[1])
-    dataT1 = type(ast.literal_eval(values[0]))
-    dataT2 = type(ast.literal_eval(values[1]))
+    dataT1 = dataT2 = None
+
+    # looks up variable in the dictionary for value
+    for key in variableDict.keys():
+        name = key.split("-")[1]
+        if name == values[0] and name == values[1]:
+            dataT1 = dataT2 = variableDict[key]
+        else:
+            if name == values[0]:
+                dataT1 = variableDict[key]
+            elif name == values[1]:
+                dataT2 = variableDict[key]
+        
+    # for int/ floats or potential unassigned variables
+    if dataT1 == None and dataT1 == None:
+        dataT1 = type(ast.literal_eval(values[0]))
+        dataT2 = type(ast.literal_eval(values[1]))
+    elif dataT1 == None:
+        dataT1 = type(ast.literal_eval(values[0]))
+    elif dataT2 == None:
+        dataT2 = type(ast.literal_eval(values[1]))
+
+    # if valid then updates the variable to dictionary
     if dataT1 == dataT2:
-        data[1]=values[0]
+        data[1]=dataT1
         duplicateCheck(data)
     else :
         print("The Data type of the values for the calculation of", data[0], "do not match! Recommended to change them")
+    '''
 
 def compareCheck(key, data):
     dataT = variableDict[key]
     newDataT = type(ast.literal_eval(data[1]))
     if dataT == newDataT:
+        print("match variable updated")
         del variableDict[key]
         variableDict[data[0]] = newDataT 
     else:
@@ -41,7 +65,11 @@ def duplicateCheck(data):
             compareCheck(key, data)
             break
     if dup == False:
-        variableDict[data[0]] = type(ast.literal_eval(data[1]))
+        try:
+            dataT = type(ast.literal_eval(data[1]))
+        except:
+            dataT = data[1]
+        variableDict[data[0]] = dataT
 
 def variableAssign(data):
     if len(data) == 2:
@@ -65,11 +93,13 @@ with open ('test.py', 'r') as f:
             line = line.lstrip()
 
             #   checks for comments in the source code
-            if any(anotation in line for anotation in commentAnotations):
+            if '#' in line[:1]:
+                continue
+            elif "'''" in line:
                 if comment:
                     comment = False
                 else:
-                    commment = True
+                    comment = True
 
             #   skips line when the code is marked as a comment in the source code
             if comment:
@@ -79,7 +109,7 @@ with open ('test.py', 'r') as f:
                 variable = re.search('\w+\s?=\s?',line)
                 if variable != None:
                     data = re.split('\s?\+*\-*=\s?', line)
-                    #   for duplicate variables
+                    #   for code line of variable
                     data[0] = str(codeLine) +"-"+data[0] 
                     variableAssign(data)
         else:

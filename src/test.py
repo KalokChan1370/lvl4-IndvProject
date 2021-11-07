@@ -1,12 +1,11 @@
 test = [2,3,4,5]
 test = [1]
-test = 1.234
+test = 1
 test= "hey"
-calc = 2 + 2
+calc = test + 2
 calc = 2.2 - 2
 equal = "hello"
 equal== test
-
 
 # Testing the # comment
 '''Testing docstring 

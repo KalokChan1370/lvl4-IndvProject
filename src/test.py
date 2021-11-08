@@ -1,9 +1,10 @@
 test = [2,3,4,5]
 test = [1]
 test = 1
-test= "hey"
+#test= "hey"
+
 calc = test + 2
-calc = 2.2 - 2
+calc = 2.2 // 2
 equal = "hello"
 equal== test
 

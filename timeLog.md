@@ -65,3 +65,14 @@
 ### 1/11/21
 * **3 hours** debugging the way comments are excluded and added a very clunky version of calculation checks
 * **0.5 hours** Preparing for meeting with supervisior
+### 2/11/21
+* **0.5 hours** Meeting with supervisior
+### 6/11/21
+* **2 hours** reading up about ast module
+### 7/11/21
+* **0.5 hours** setting up dissertation template on overleaf  
+* **4 hours** reading more about the ast module and see test if its applicable
+
+## Week 7
+### 7/11/21
+* **2 hours** converting code written to execute using the ast Module

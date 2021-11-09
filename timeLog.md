@@ -15,8 +15,8 @@
 ## Week 1 
 
 ### 1/10/21
-* *1.5 hours* Read the project guidence notes
-* *0.5 hours* Meeting with supervisor 
+* **1.5 hours** Read the project guidence notes
+* **0.5 hours** Meeting with supervisor 
 
 ## Week 2
 
@@ -76,3 +76,4 @@
 ## Week 7
 ### 7/11/21
 * **2 hours** converting code written to execute using the ast Module
+* **1.5 hour** reading past dissertations and made an attempt to start dissertation

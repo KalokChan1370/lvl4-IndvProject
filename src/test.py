@@ -14,3 +14,8 @@ comment style'''
 for i in range (0,12):
     hello = "hello"
     i+=1
+
+def add (a,b):
+    return a+b
+
+total= add(1,2)

@@ -64,7 +64,7 @@
 
 ### 1/11/21
 * **3 hours** debugging the way comments are excluded and added a very clunky version of calculation checks
-* **0.5 hours** Preparing for meeting with supervisior
+* **0.5 hours** Preparing materials for meeting with supervisior
 ### 2/11/21
 * **0.5 hours** Meeting with supervisior
 ### 6/11/21
@@ -74,6 +74,19 @@
 * **4 hours** reading more about the ast module and see test if its applicable
 
 ## Week 7
-### 7/11/21
+
+### 8/11/21
 * **2 hours** converting code written to execute using the ast Module
-* **1.5 hour** reading past dissertations and made an attempt to start dissertation
+* **1.5 hour** Reading past dissertations and made an attempt to start dissertation
+### 9/11/21
+* **0.5 hours** Meeting cancelled, reported progress of work for supervisor
+### 14/11/21
+* **5 hours** Writing motivation part of the introduction in dissertation 
+
+## Week 8
+
+### 15/11/21
+* **2 hours** Began writing background in dissertation
+* **0.5 hours** Preparing materials for meeting with supervisior
+### 16/11/21
+* **0.5 hours** Meeting with supervisior

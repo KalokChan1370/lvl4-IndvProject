@@ -27,14 +27,16 @@ def duplicateCheck(new):
 with open("test.py",'r') as f:
     content = f.read()
     module = ast.parse(content)
-
+    
     # alternate method to find all assignments
     # c=vis()
     # c.visit(module)
     # for x in variables:
     #     print(x.value)
     for node in module.body:
+        print(ast.dump(node))
         if isinstance(node, ast.Assign):
+            
             duplicateCheck(node)
 
     print([x.targets[0].id for x in variables])

@@ -3,17 +3,25 @@ import astpretty
 
 class vis(ast.NodeVisitor):
     def __init__(self):
-        self.variables=[]
+        self.variables={}
         self.func_sign = {}
+
+    def extract(self,node):
+        variableName=node.targets[0].id
+        nodetype= node.value
+        line= node.lineno
+        return variableName, line, nodetype
 
     def visit_Assign(self, node):
         if isinstance(node.value,ast.Call):
             self.Call(node)
-        duplicateCheck(node, self.variables)   
+        else:
+            variableName, line, nodetype =self.extract(node)
+            duplicateCheck(variableName,line,nodetype, self.variables)   
 
     # assumes all variables used are local
     def visit_FunctionDef(self, node):
-        sub_variables = []
+        sub_variables = {}
         annotations = []
 
         print("variables in function:", node.name)
@@ -23,15 +31,18 @@ class vis(ast.NodeVisitor):
             if a.annotation !=None:
                 # eval not recommended
                 annotations.append((a.arg, eval(a.annotation.id)))
+
+        #TODO needs amending due to using function without type hint
         if node.returns != None:
-            annotations.append(('return type',eval(node.returns.id)))
+            annotations.append(('return type',node.returns.id))
         self.func_sign[node.name]=annotations
 
         for n in node.body:
             if isinstance(n, ast.Assign):
-                duplicateCheck(n,sub_variables)
+                variableName, line, nodetype =self.extract(n)
+                duplicateCheck(variableName,line,nodetype, sub_variables) 
         
-        print([x.targets[0].id for x in sub_variables])
+        # print([k for k in sub_variables.keys()])
         print("-----"*10,"function def end","-----"*10,)
 
     def Call(self, node):
@@ -55,39 +66,32 @@ class vis(ast.NodeVisitor):
         
         #checks data type of return type
         if parameters[-1][0]=='return type':
-            dup= False
-            name = node.targets[0].id
-            if len(self.variables)!=0:
-                for x in self.variables:
-                    if name == x.targets[0].id:
-                        dup = True 
-                        if isinstance(parameters[-1][1], type(x.value)):
-                            self.variables[name]=parameters[-1][1]
-                        else:
-                            print(f"return value data type for function call '{node.value.func.id}' does not match with current data type of '{name}'")
-                        break
+            variableName = node.targets[0].id
+            line = node.lineno
+            nodetype = parameters[-1][1]
+            duplicateCheck(variableName,line,nodetype, self.variables)  
         print("-----"*10,"caller end","-----"*10,"\n")
 
 #TODO:Need to check about binary operations for assignments ie 
 #  a=b+c, a="hello" + 3, returns match
-#TODO: change how list is stored, dont need to store the whole node
-def duplicateCheck(new, variabelsList):
+#TODO: differentiate between mismatches ie 
+#return data type and normal assignment
+def duplicateCheck(name,line, nodetype, variablesdict):
     dup = False
-    name = new.targets[0].id
-    if len(variabelsList) != 0:
-        for x in variabelsList:
-            if name == x.targets[0].id:
+    if len(variablesdict) != 0:
+        for k,v in variablesdict.items():
+            if name == k:
                 dup = True 
-                if isinstance(new.value, type(x.value)):
+                if isinstance(nodetype, variablesdict[k]['type']):
                     #updates variable position when type match
-                    variabelsList[variabelsList.index(x)]= new
+                    variablesdict[name]= {'type':type(nodetype),'line':line}
                 else:
-                    print(f"data type for:'{new.targets[0].id}' at {x.lineno} and at {new.lineno}: mismatch")
+                    print(f"data type for:'{name}' at {variablesdict[k]['line']} and at {line}: mismatch")
                 break
         if not dup:
-            variabelsList.append(new)
+            variablesdict[name]= {'type':type(nodetype),'line':line}
     else:
-        variabelsList.append(new)
+        variablesdict[name]= {'type':type(nodetype),'line':line}
 
 
 # Program start
@@ -101,7 +105,8 @@ with open("test.py",'r') as f:
         c.visit(node)
 
     print("Global variables")
-    print([x.targets[0].id for x in c.variables])
+    for k,v in c.variables.items():
+        print(k,':',v)
 
     print("Funcion signatures")
     for k,v in c.func_sign.items():

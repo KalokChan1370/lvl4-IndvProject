@@ -15,12 +15,11 @@ area = trapezoidArea(1,2,"hi")
 test = [2,3,4,5]
 test = [1]
 test = 1
-
-calc = test + 2
+a = 4
+calc = 1 + 2+3+5
 calc = 2.2 * 2
-equal = "hello"
-equal== test
 
+equal = "hello"
 # Testing the # comment
 '''Testing docstring 
 comment style'''
@@ -28,4 +27,5 @@ for i in range (0,12):
     hello = "hello"
     i+=1
 
-
+here=1.1
+here = 3

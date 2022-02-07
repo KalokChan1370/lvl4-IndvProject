@@ -1,5 +1,5 @@
 def trapezoidArea(a:int,b:int,h:int) ->int:
-    base = a+b
+    base = a+ b
     base = 1
     area = (base/2)*h
     return area
@@ -29,3 +29,5 @@ for i in range (0,12):
 
 here=1.1
 here = 3
+
+half = unit* 0.5 + g

@@ -68,8 +68,6 @@ def finder(node, oldVar=None, method=None, newVar=None, begin=True):
                     if isinstance(i, ast.Assign):
                         updateVarAssignment(i.targets[0].id, i.value.func.id)
                         # is it used within the scope?
-                        astpretty.pprint(elem)
-                        print("target", i.targets[0].id)
                         target_method = variable_used_in_scope(i.targets[0].id, elem)
                         if target_method is not None:
                             # we found it, method is passed to a method in scope
@@ -79,6 +77,7 @@ def finder(node, oldVar=None, method=None, newVar=None, begin=True):
         node2 = get_method_node(method)
         #update the reference to the new scopped varaible. Assumes the varaible id will change.
         newVar = node2.args.args[0].arg
+        print(newVar)
         var_assigns[newVar] = var_assigns[oldVar]
         del var_assigns[oldVar]
         for elem in node2.body:
@@ -114,5 +113,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-print(var_assigns)

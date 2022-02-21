@@ -2,15 +2,18 @@ def trapezoidArea(a:int,b:int,h:int) ->int:
     base = a+ b
     base = 1
     area = (base/2)*h
-    return area
+    return "hi"
 
-def stringSum(a, b, c):
+def print2(word:str, num:str) ->str:
+    return word   
+
+def stringSum(a:str, b:str, c:str):
     test= a+b
     return len(test)
 
 
 area = "area"
-count = stringSum(a="hey", b="sum",c=[1,23])
+count = stringSum("hey", "sum","[1,23]")
 area = trapezoidArea(1,2,"hi")
 
 test = [2,3,4,5]
@@ -33,19 +36,16 @@ here = 3
 
 half = unit* 0.5 + g
 
-def print2(word, num):
-    return word
-
 hey = "hello"
 num = 1
-ca = print2(word = hey, num=1)
-b = ca
+ca = print2(hey,"hey")
+#b = ca
 
 def add(a,b):
     c= b
-    return print2(word = a,num = c)
+    return c
 
 assume = "hello" *3
-guess = add(1,2)
+guess = add(a=1,b=2)
 
 ok = len(assume)

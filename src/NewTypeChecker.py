@@ -129,7 +129,7 @@ class vis(ast.NodeVisitor):
         sub_variables = {}
         annotations = []
         hints = True
-        print("local variables of function",node.name,"when defined:")
+        print("local variables of function '"+node.name+"' when defined:")
 
         #requires source code to use type hints
         for a in node.args.args:
@@ -146,11 +146,17 @@ class vis(ast.NodeVisitor):
         except :
             hints = False
             for n in node.body:
+                # consider other return types ie bin op and lists
                 if isinstance(n, ast.Return):
                     returnT=n.value
                     if isinstance(returnT, ast.Call):
                         returnT = self.lookUp(n.value, call=True)
+                    elif isinstance(returnT, ast.Name):
+                        returnT=returnT
+                    else:
+                        returnT=type(ast.literal_eval(returnT))
                     annotations.append(('return type',returnT))
+                    break
 
         annotations.insert(0, {"hints":hints})
         self.func_sign[node.name]=annotations
@@ -186,18 +192,43 @@ class vis(ast.NodeVisitor):
                 # for unassigned arguements ie not doing product(a=1, b=2)
                 if len(keywords) == 0:
                     for arg in arguments:
-                        #TODO validate for return type 
+                        if isinstance(arg, ast.Name):
+                            if arg.id in self.variables:
+                                argType = self.variables[arg.id]['type']
+                            else:
+                                reportData.append([variableName, arg.lineno,4])
+                                break
+                        else:
+                            argType = type(ast.literal_eval(arg))
                         #checks argument to its corresponding parameter while excluding return
-                        if type(ast.literal_eval(arg))!= parameters[count][1] and parameters[count][0]!='return type':
-                            reportData.append([node.value.func.id, arg.lineno, count, type(ast.literal_eval(arg)), parameters[count][1],2])
+                        if argType != parameters[count][1] and parameters[count][0]!='return type':
+                            reportData.append([funcName, arg.lineno, count, argType, parameters[count][1],2])
                         count+=1
                 else:
-                    for key in keywords:
-                        for pram in parameters:
-                            if key.arg == pram[0]:
-                                if type(ast.literal_eval(key.value)) != pram[1]:
-                                    reportData.append([node.value.func.id, key.arg, node.lineno, type(ast.literal_eval(key.value)), pram[1], 3])
-
+                    if NestCall:
+                        keywords= NestArg
+                        for key in keywords:
+                            for param in parameters:
+                                if key[0] == param[0]:
+                                    if  key[1]['type']!=param[1]:
+                                        reportData.append([funcName,key[0],key[1]['line'],key[1]['type'],param[1],3])
+                                    break
+                    else:
+                        for key in keywords:
+                            for param in parameters:
+                                if key.arg == param[0]:
+                                    if isinstance(key.value, ast.Name):
+                                        #finds if variable is in the list of defined variables
+                                        if key.value.id in self.variables:
+                                            keyType = self.variables[key.value.id]['type']
+                                        else:
+                                            reportData.append([key.value.id, key.value.lineno]) 
+                                    else:
+                                        keyType = type(ast.literal_eval(key.value))
+                        
+                                    if keyType != param[1]:
+                                        reportData.append([funcName, key.arg, node.lineno, type(ast.literal_eval(key.value)), param[1], 3])
+                                    break
             # updates parameters types with caller arguments
             else:
                 Nparam = {}
@@ -223,15 +254,15 @@ class vis(ast.NodeVisitor):
                                         for i in range(len(NestArg)):
                                             if p == NestArg[i][0]:
                                                 Nparam[p]= NestArg[i][1]
-                                                break
                                     else:
                                         Nparam[p] = self.variables[key.value.id]
                                 else:
                                     Nparam[p] = {"type":type(ast.literal_eval(key.value)), "line": node.lineno}
+                                break
                 #type checks the updated variables used in the function
                 self.revisit_method(Nparam, funcName) 
 
-            #checks data type of return type
+            #obtains data type of return type
             if nodetype!=None:
                 if isinstance(nodetype, ast.Name):
                     if nodetype.id in Nparam:
@@ -242,15 +273,28 @@ class vis(ast.NodeVisitor):
                     nodetype=self.extract(nodetype,Nparam, returnV=True)
                 elif isinstance(nodetype, ast.Call):
                      # give call arguments its data type
-                    callArgs = nodetype.args
                     ArgT=[]
-                    for x in callArgs:
-                        # if the arguments are variables in the previous function
-                        if x.id in Nparam:
-                            ArgT.append((x.id,Nparam[x.id]))
+                    if len(nodetype.keywords) == 0: 
+                        callArgs = nodetype.args
+                        for x in callArgs:
+                            #needs amended same as below
+                            # if the arguments are variables in the previous function
+                            if x.id in Nparam:
+                                ArgT.append((x.id,Nparam[x.id]))
+
+                    else:
+                        callArgs = nodetype.keywords
+                        for x in callArgs:
+                            if isinstance(x.value, ast.Name):
+                                if x.value.id in Nparam:
+                                    ArgT.append((x.arg,Nparam[x.value.id]))
+                            else:
+                                constant ={'type':type(ast.literal_eval(x.value)),
+                                 'line': nodetype.lineno}
+                                ArgT.append((x.arg,constant))
                     nodetype = self.Call(nodetype, NestCall=True,NestArg= ArgT)
 
-            # if in a nested call, returns the return type of the function
+            # if in a nested call, returns the return type of a nested call
             if NestCall:
                 return nodetype              
             self.duplicateCheck(variableName,line,nodetype, self.variables) 
@@ -258,10 +302,11 @@ class vis(ast.NodeVisitor):
         else:
             nodetype = self.lookUp(funcName)
             if nodetype == None:
-                print("function not defined rn or its a built in function")
+                print("function not defined or it is a built in function")
             else:
                 self.duplicateCheck(variableName,line,nodetype, self.variables) 
 
+    # returns the data type of a bulit-in function
     def lookUp(self,target, call = False):
         if call:
             if target.func.id in built_funcs:
@@ -316,7 +361,7 @@ def report(reportData):
     1) Data types of variables mismatch
     2) Caller arguments and function parameters mismatch (Unamed)
     3) Caller arguments and function parameters mismatch (Named)
-    4) uninitialized variable used in binary operations
+    4) uninitialized variable
     5) type mismatch for binary operations not recommended
     6) type mismatch for binary operations not recommended (return ver)
     '''
@@ -335,7 +380,7 @@ def report(reportData):
                     f"with its corresponding type in the function signature of {data[4]}")
             
             elif data[-1] == 4:
-                print(f"Unknown data type found for the variable expression '{data[0]}' at {data[1]} due to its component(s) are uninitialized ")
+                print(f"Variable '{data[0]}' found at {data[1]} has no data type as it contains an uninitialized ")
             
             elif data[-1] == 5:
                 print(f"The components of '{data[0]}' on line {data[1]} performs a maths operation on different types and is not recomended ")
@@ -355,6 +400,8 @@ c = vis()
 root = tree[0].item
 for n in root.body:
     c.visit(n)
+
+    
 print("\nGlobal variables")
 for k,v in c.variables.items():
     print(k,':',v)

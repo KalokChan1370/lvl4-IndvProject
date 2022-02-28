@@ -66,6 +66,8 @@ def finder(node, oldVar=None, method=None, newVar=None, begin=True):
             if isinstance(elem, ast.If):
                 for i in elem.body:
                     if isinstance(i, ast.Assign):
+                        print("elem:", ast.dump(elem))
+                        print("target,",i.targets[0].id)
                         updateVarAssignment(i.targets[0].id, i.value.func.id)
                         # is it used within the scope?
                         target_method = variable_used_in_scope(i.targets[0].id, elem)
@@ -109,7 +111,6 @@ def main():
     tree = buildTree()
     root = ast.Module(tree[0].container)
     finder(root)
-
 
 if __name__ == "__main__":
     main()

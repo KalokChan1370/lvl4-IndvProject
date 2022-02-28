@@ -1,4 +1,5 @@
 import ast
+from http.client import INSUFFICIENT_STORAGE
 from built_func_type import funcs as built_funcs
 import astpretty
 
@@ -26,60 +27,74 @@ class vis(ast.NodeVisitor):
     def __init__(self):
         self.variables={}
         self.func_sign = {}
+        self.classDef = {}
+        self.objectAttr={}
         # custom number type to associate float and int
         self.Numtype = [type(1),type(1.1)]
 
 #================================== obtaining variable type =============================   
-    def checkBinVariable(self,component,variables, params):
+    def checkBinVariable(self,component,variables, params, definedObj = None):
         if isinstance (component, ast.Name):
             if component.id in variables:
                 component = variables[component.id]['type']
             else:
+                
                 # if unnamed params
                 if params is not None and params[0]["hints"]:
                     for tup in params[1:-1]:
                         if component.id == tup[0]:
-                           component = tup[1]
-                           break    
+                            component = tup[1]
+                            break    
                 elif params is not None and not params[0]["hints"]:
                     component = component
                 else:
+                    
                     # component contains an uninitialized variable
                     component = None
+        elif isinstance(component, ast.Attribute):
+            if definedObj != None:
+                if component.attr in self.objectAttr[definedObj]:
+                    component = self.objectAttr[definedObj][component.attr]['type']
+            else:
+                component = ast.BinOp
         else:
             component = type(ast.literal_eval(component)) 
         return component
 
-    def nestedBin(self,nodetype, variables, params= None):       
+    def nestedBin(self,nodetype,variableNode, variables, params= None,definedObj = None): 
         if isinstance(nodetype.left, ast.BinOp):
-            return self.nestedBin(nodetype.left, variables,params)
+            lefttype=self.nestedBin(nodetype.left,variableNode, variables,params)
         else:
             leftCom = nodetype.left
-            rightCom = nodetype.right
-            lefttype = self.checkBinVariable(leftCom,variables,params)
-            righttype = self.checkBinVariable(rightCom,variables,params)
-            if lefttype == righttype:
-                nodetype = lefttype
-            # when components are both numbers ie int and float convert to int
-            elif lefttype in self.Numtype and righttype in self.Numtype:
-                nodetype = type(1)
-            elif isinstance(lefttype,ast.Name) or isinstance(righttype, ast.Name):
-                nodetype = "TBC"
-            else:
-                # assigns None to type when either component used before assignment or types are different thus not recommended
-                if (lefttype is None) or (righttype is None):
-                    nodetype = [None,0]
-                else:
-                    # potential change to store the types of individual components
-                    nodetype = [None,1]
-            return nodetype
+            lefttype = self.checkBinVariable(leftCom,variables,params,definedObj)
 
-    def extract(self,node, variables, funcName=None, returnV = False):
+        rightCom = nodetype.right
+        righttype = self.checkBinVariable(rightCom,variables,params,definedObj)
+        if lefttype == righttype:
+            nodetype = lefttype
+        # when components are both numbers ie int and float convert to int
+        elif lefttype in self.Numtype and righttype in self.Numtype:
+            nodetype = type(1)
+        elif isinstance(lefttype,ast.Name) or isinstance(righttype, ast.Name):
+            nodetype = variableNode
+        else:
+            # assigns None to type when either component used before assignment or types are different thus not recommended
+            if (lefttype is None) or (righttype is None):
+                nodetype = [None,0]
+            else:
+                # potential change to store the types of individual components
+                nodetype = [None,1]
+        return nodetype
+
+    def extract(self,node, variables, funcName=None, returnV = False, className= None, definedObj = None):
         global reportData
 
         line= node.lineno
         if not returnV:
-            variableName=node.targets[0].id
+            if not isinstance(node.targets[0], ast.Attribute):
+                variableName=node.targets[0].id
+            else:
+                variableName = node.targets[0].attr
             nodetype= node.value
         else:
             nodetype = node
@@ -87,18 +102,25 @@ class vis(ast.NodeVisitor):
         if isinstance(nodetype, ast.BinOp):
             #obtains the types of the function signatures
             if funcName is not None:
-                params = self.func_sign[funcName]
+                if className is not None:
+                    params = self.classDef[className][funcName]
+                else:
+                    params = self.func_sign[funcName]
             else:
                 params = None
-            nodetype=self.nestedBin(nodetype,variables,params)
+            nodetype=self.nestedBin(nodetype,node.targets[0],variables,params,definedObj)
+        
         else:
-            if not isinstance (nodetype, ast.Name):
-                nodetype = type(ast.literal_eval(nodetype))
-            else:
+            if isinstance(nodetype, ast.Attribute):
+                nodetype = nodetype
+            elif isinstance (nodetype, ast.Name):
                 for name in variables.keys():
                     if nodetype.id == name:
                         nodetype = variables[name]["type"]
                         break
+            else:
+                nodetype = type(ast.literal_eval(nodetype))
+                
     
         # for errors 
         if isinstance(nodetype, list) and isinstance(nodetype[0], type(None)):
@@ -117,219 +139,372 @@ class vis(ast.NodeVisitor):
         else:
             return variableName, line, nodetype
 
-#======================================= visit functions =======================================
-    def visit_Assign(self, node):
-        if isinstance(node.value,ast.Call):
-            self.Call(node)
-        else:
-            variableName, line, nodetype =self.extract(node, self.variables)
-            self.duplicateCheck(variableName,line,nodetype, self.variables)   
-
-    def visit_FunctionDef(self, node, hints=False):
-        sub_variables = {}
-        annotations = []
-        hints = True
-        print("local variables of function '"+node.name+"' when defined:")
-
-        #requires source code to use type hints
-        for a in node.args.args:
-            try:
-                #TODO find alternative for eval
-                annotations.append((a.arg, eval(a.annotation.id)))
-            except:
-                hints = False
-                annotations.append(a.arg)        
+    def getFuncName(self,node):
         try:
-            #checks if return value has type hints
-            annotations.append(('return type',eval(node.returns.id)))
-
-        except :
-            hints = False
-            for n in node.body:
-                # consider other return types ie bin op and lists
-                if isinstance(n, ast.Return):
-                    returnT=n.value
-                    if isinstance(returnT, ast.Call):
-                        returnT = self.lookUp(n.value, call=True)
-                    elif isinstance(returnT, ast.Name):
-                        returnT=returnT
-                    else:
-                        returnT=type(ast.literal_eval(returnT))
-                    annotations.append(('return type',returnT))
-                    break
-
-        annotations.insert(0, {"hints":hints})
-        self.func_sign[node.name]=annotations
-
-        for n in node.body:
-            if isinstance(n, ast.Assign):
-                variableName, line, nodetype =self.extract(n,sub_variables, node.name)
-                self.duplicateCheck(variableName,line,nodetype, sub_variables)  
-
-        print([(k,v) for k,v in sub_variables.items()],"\n")
-
-    def Call(self, node, NestCall = False, NestArg= None):
-        global reportData
-        if not NestCall:
-            arguments = node.value.args
-            variableName = node.targets[0].id
-            line = node.lineno
-            funcName = node.value.func.id
-            keywords = node.value.keywords
-        else:
-            funcName = node.func.id
-            keywords = node.keywords
-        
-        if funcName in self.func_sign:
-            parameters = self.func_sign[funcName][1:]
-            count = 0
-            hints = self.func_sign[funcName][0]["hints"] 
-            
-            nodetype = parameters[-1][1]
-            if hints:
-                # performs type checking against parameters and arguments
-
-                # for unassigned arguements ie not doing product(a=1, b=2)
-                if len(keywords) == 0:
-                    for arg in arguments:
-                        if isinstance(arg, ast.Name):
-                            if arg.id in self.variables:
-                                argType = self.variables[arg.id]['type']
-                            else:
-                                reportData.append([variableName, arg.lineno,4])
-                                break
-                        else:
-                            argType = type(ast.literal_eval(arg))
-                        #checks argument to its corresponding parameter while excluding return
-                        if argType != parameters[count][1] and parameters[count][0]!='return type':
-                            reportData.append([funcName, arg.lineno, count, argType, parameters[count][1],2])
-                        count+=1
-                else:
-                    if NestCall:
-                        keywords= NestArg
-                        for key in keywords:
-                            for param in parameters:
-                                if key[0] == param[0]:
-                                    if  key[1]['type']!=param[1]:
-                                        reportData.append([funcName,key[0],key[1]['line'],key[1]['type'],param[1],3])
-                                    break
-                    else:
-                        for key in keywords:
-                            for param in parameters:
-                                if key.arg == param[0]:
-                                    if isinstance(key.value, ast.Name):
-                                        #finds if variable is in the list of defined variables
-                                        if key.value.id in self.variables:
-                                            keyType = self.variables[key.value.id]['type']
-                                        else:
-                                            reportData.append([key.value.id, key.value.lineno]) 
-                                    else:
-                                        keyType = type(ast.literal_eval(key.value))
+            funcParse = node.value.func
+            if isinstance(funcParse, ast.Attribute):
+                object = funcParse.value.id
+                #checks if caller is from a class
+                if object in self.variables and self.variables[object]['type'] in self.classDef:
+                    className = self.variables[object]['type']
+                    #checks if func exists
+                    if funcParse.attr in self.classDef[className]:
                         
-                                    if keyType != param[1]:
-                                        reportData.append([funcName, key.arg, node.lineno, type(ast.literal_eval(key.value)), param[1], 3])
-                                    break
-            # updates parameters types with caller arguments
-            else:
-                Nparam = {}
-                # for unassigned arguements ie not doing product(a=1, b=2)
-                if len(keywords) == 0:
-                    if NestCall:
-                        for i in range(len(NestArg)):
-                            Nparam[parameters[i]]= NestArg[i][1]
-                    else:
-                        for arg in arguments:
-                            if isinstance(arg, ast.Name) and parameters[-1][0] != 'return type':
-                                if arg.id in self.variables:
-                                    Nparam[parameters[count]]= self.variables[arg.id]
-                            else:
-                                Nparam[parameters[count]] = {"type":type(ast.literal_eval(arg)), "line": node.lineno}
-                            count+=1
+                        return className,funcParse.attr, object
                 else:
-                    for key in keywords:
-                        for p in parameters[:-1]:
-                            if key.arg == p:
-                                if isinstance(key.value, ast.Name):
-                                    if NestCall:
-                                        for i in range(len(NestArg)):
-                                            if p == NestArg[i][0]:
-                                                Nparam[p]= NestArg[i][1]
-                                    else:
-                                        Nparam[p] = self.variables[key.value.id]
-                                else:
-                                    Nparam[p] = {"type":type(ast.literal_eval(key.value)), "line": node.lineno}
-                                break
-                #type checks the updated variables used in the function
-                self.revisit_method(Nparam, funcName) 
-
-            #obtains data type of return type
-            if nodetype!=None:
-                if isinstance(nodetype, ast.Name):
-                    if nodetype.id in Nparam:
-                        nodetype = Nparam[nodetype.id]["type"]
-                    elif nodetype.id in self.variables:
-                        nodetype = self.variables[nodetype.id]["type"]
-                elif isinstance(nodetype, ast.BinOp):
-                    nodetype=self.extract(nodetype,Nparam, returnV=True)
-                elif isinstance(nodetype, ast.Call):
-                     # give call arguments its data type
-                    ArgT=[]
-                    if len(nodetype.keywords) == 0: 
-                        callArgs = nodetype.args
-                        for x in callArgs:
-                            #needs amended same as below
-                            # if the arguments are variables in the previous function
-                            if x.id in Nparam:
-                                ArgT.append((x.id,Nparam[x.id]))
-
-                    else:
-                        callArgs = nodetype.keywords
-                        for x in callArgs:
-                            if isinstance(x.value, ast.Name):
-                                if x.value.id in Nparam:
-                                    ArgT.append((x.arg,Nparam[x.value.id]))
-                            else:
-                                constant ={'type':type(ast.literal_eval(x.value)),
-                                 'line': nodetype.lineno}
-                                ArgT.append((x.arg,constant))
-                    nodetype = self.Call(nodetype, NestCall=True,NestArg= ArgT)
-
-            # if in a nested call, returns the return type of a nested call
-            if NestCall:
-                return nodetype              
-            self.duplicateCheck(variableName,line,nodetype, self.variables) 
-                
-        else:
-            nodetype = self.lookUp(funcName)
-            if nodetype == None:
-                print("function not defined or it is a built in function")
+                    print("function does not exist")
+                    return None
             else:
-                self.duplicateCheck(variableName,line,nodetype, self.variables) 
+                return funcParse.id
+        except:
+            return node.func.id
 
-    # returns the data type of a bulit-in function
-    def lookUp(self,target, call = False):
-        if call:
-            if target.func.id in built_funcs:
-                return built_funcs[target.func.id]
-            #return as a call object 
-            elif target.func.id in self.func_sign:
-                return target
-        else:
-            if target in built_funcs:
-                return built_funcs[target] 
-            elif target in self.func_sign:
-                return self.func_sign[target]
+       # returns the data type of a bulit-in function
+    def returnLookUp(self,target, call = False):
+        if target != None:
+            if call:
+                if target.func.id in built_funcs:
+                    return built_funcs[target.func.id]
+                #return as a call object 
+                elif target.func.id in self.func_sign:
+                    return target
+            else:
+                if target in built_funcs:
+                    return built_funcs[target] 
+                elif target in self.func_sign:
+                    return self.func_sign[target]
+                elif "class_"+target in self.classDef:
+                    return "class_"+target
             return None
 
     def revisit_method(self, sub_variables, target):
         global tree
         for elem in tree[0].item.body:
-            if isinstance(elem, ast.FunctionDef) and elem.name == target:
+            if isinstance(elem, ast.ClassDef) and elem.name == target[0][6:]:
+                for funcDef in elem.body:
+                    if isinstance(funcDef, ast.FunctionDef) and funcDef.name == target[1]:
+                        for n in funcDef.body:
+                            if isinstance(n, ast.Assign):
+                                self.visit_Assign(n, sub_variables, target[1],target[0], target[2])
+
+            elif isinstance(elem, ast.FunctionDef) and elem.name == target:
                 for n in elem.body:
                     if isinstance(n, ast.Assign):
-                        variableName, line, nodetype =self.extract(n,sub_variables, target)
-                        self.duplicateCheck(variableName,line,nodetype, sub_variables) 
+                        dup,nodetype = self.visit_Assign(n, sub_variables, target)
+        #                 print(dup,nodetype,n.targets[0].id)
+        # print("revisit", sub_variables)
+           
     
+#======================================= visit functions =======================================
+    def visit_Assign(self, node, variableList = None, funcName = None, className = None, definedObj= None):
+        if isinstance(node.value,ast.Call):
+            self.Call(node)
+        else:
+            if variableList == None:
+                variableList = self.variables
+            variableName, line, nodetype =self.extract(node, variableList, funcName=funcName,className=className,definedObj=definedObj)
+            return self.duplicateCheck(variableName,line,nodetype, variableList)  
+    
+    def visit_ClassDef(self, node):
+        className="class_"+node.name 
+        self.classDef[className] ={}
+        for elem in node.body:
+            if isinstance(elem, ast.FunctionDef):
+                if elem.name != '__init__':
+                    self.visit_FunctionDef(elem, classDef= True, className=className)
+                else:
+                    self.visit_FunctionDef(elem, classDef= True, className=className, init=True)
+        
+
+    def visit_FunctionDef(self, node, hints=False, classDef=False, className = None, init=False):
+        sub_variables = {}
+        annotations = []
+        hints = True
+        print("local variables of function '"+node.name+"' when defined:")
+
+       #requires source code to use type hints
+        for a in node.args.args:
+            if a.arg == "self":
+                continue
+            try:
+                 #if hints used
+                annotations.append((a.arg, eval(a.annotation.id)))
+            except:
+                hints = False
+                annotations.append(a.arg)   
+                
+        annotations.insert(0, {"hints":hints})
+        
+        if classDef:
+            if className in self.classDef:
+                if init:
+                    self.classDef[className]['__init__']= annotations
+                else:
+                    self.classDef[className][node.name]= annotations
+        else:
+            self.func_sign[node.name]=annotations
+
+        for n in node.body:
+            if isinstance(n, ast.Assign):
+                self.visit_Assign(n, sub_variables, node.name, className)
+
+        # gets the return type if applicable
+        try:
+            #if hints used
+            annotations.append(('return type',eval(node.returns.id)))
+        except :
+            for n in node.body:
+                # consider other return types ie bin op and lists
+                if isinstance(n, ast.Return):
+                    hints = False
+                    returnT=n.value
+                    if isinstance(returnT, ast.Call):
+                        returnT = self.returnLookUp(n.value, call=True)
+                    elif isinstance(returnT, ast.Name):
+                        if returnT.id in sub_variables:
+                            returnT = sub_variables[returnT.id]['type']
+                    elif isinstance(returnT, ast.Attribute):
+                        returnT = returnT
+                    else:
+                        try:
+                            returnT=type(ast.literal_eval(returnT))
+                        except:
+                            returnT = type(returnT)
+                    annotations.append(('return type',returnT))
+                    break
+        
+        annotations[0]={"hints":hints}
+        
+        if classDef:
+            if className in self.classDef:
+                if init:
+                    self.classDef[className]['__init__']= annotations
+                else:
+                    self.classDef[className][node.name]= annotations
+        else:
+            self.func_sign[node.name]=annotations
+
+        print([(k,v) for k,v in sub_variables.items()],"\n")
+        
+    def callHints(self,node, funcName, variableName, arguments, parameters, keywords,NestCall,NestArg):
+        global reportData
+
+        count = 0
+        # for unassigned arguements ie not doing product(a=1, b=2)
+        if len(keywords) == 0:
+            if NestCall:
+                for arg in NestArg:
+                    argType = arg[1]['type']
+                    if argType != parameters[count][1] and parameters[count][0]!='return type':
+                        print("arg",arg)
+                        reportData.append([funcName, arg[1]["line"], count, argType, parameters[count][1],2])
+                    count+=1
+            else:      
+                for arg in arguments:
+                    if isinstance(arg, ast.Name):
+                        if arg.id in self.variables:
+                            argType = self.variables[arg.id]['type']
+                        else:
+                            reportData.append([variableName, arg.lineno,4])
+                            break
+                    else:
+                        argType = type(ast.literal_eval(arg))
+                    #checks argument to its corresponding parameter while excluding return
+                    if argType != parameters[count][1] and parameters[count][0]!='return type':
+                        reportData.append([funcName, arg.lineno, count, argType, parameters[count][1],2])
+                    count+=1
+        else:
+            if NestCall:
+                keywords= NestArg
+                for key in keywords:
+                    for param in parameters:
+                        if key[0] == param[0]:
+                            if  key[1]['type']!=param[1]:
+                                reportData.append([funcName,key[0],key[1]['line'],key[1]['type'],param[1],3])
+                            break
+            else:
+                for key in keywords:
+                    for param in parameters:
+                        if key.arg == param[0]:
+                            if isinstance(key.value, ast.Name):
+                                #finds if variable is in the list of defined variables
+                                if key.value.id in self.variables:
+                                    keyType = self.variables[key.value.id]['type']
+                                else:
+                                    reportData.append([variableName, key.value.lineno, 4]) 
+                                    break
+                            else:
+                                keyType = type(ast.literal_eval(key.value))
+                        
+                            if keyType != param[1]:
+                                reportData.append([funcName, key.arg, node.lineno, keyType, param[1], 3])
+                            break
+    
+    # updates parameters types with caller arguments
+    def callNoHints(self,node, funcName, variableName, arguments, parameters, keywords,NestCall,NestArg):
+        count = 0
+        Nparam = {}
+        
+        # for unassigned arguements ie not doing product(a=1, b=2)
+        if len(keywords) == 0:
+            if NestCall:
+                for i in range(len(NestArg)):
+                    Nparam[parameters[i]]= NestArg[i][1]
+            else:
+                for arg in arguments:
+                    if isinstance(arg, ast.Name) and parameters[count][0] != 'return type':
+                        if arg.id in self.variables:
+                            Nparam[parameters[count]]= self.variables[arg.id]
+                        else:
+                            reportData.append([variableName, arg.lineno, 4]) 
+                            break
+                    else:
+                        Nparam[parameters[count]] = {"type":type(ast.literal_eval(arg)), "line": node.lineno}
+                    count+=1
+        else:
+            if NestCall:
+                for key in NestArg:
+                    for p in parameters[:-1]:
+                            if p == key[0]:
+                                Nparam[p]= key[1]
+                                break
+            else:
+                for key in keywords:
+                    for p in parameters[:-1]:
+                        if key.arg == p:
+                            if isinstance(key.value, ast.Name):
+                                if key.value.id in self.variables:
+                                    Nparam[p] = self.variables[key.value.id]
+                                else:
+                                    reportData.append([variableName,key.value.lineno, 4])
+                                    return None
+                            else:
+                                Nparam[p] = {"type":type(ast.literal_eval(key.value)), "line": node.lineno}
+                            break
+        #type checks the updated variables used in the function
+        self.revisit_method(Nparam, funcName)
+        return Nparam
+
+    def Call(self, node, NestCall = False, NestArg= None, variableName = None):
+        global reportData
+
+        funcName = self.getFuncName(node)
+        line = node.lineno
+        if not NestCall:
+            arguments = node.value.args
+            variableName = node.targets[0].id
+            keywords = node.value.keywords
+        else:
+            keywords = node.keywords
+            arguments= NestArg
+
+        if funcName in self.func_sign or isinstance(funcName, tuple):
+            try:
+                parameters = self.classDef[funcName[0]][funcName[1]][1:]
+                hints = self.classDef[funcName[0]][funcName[1]][0]["hints"]
+            except:
+                parameters = self.func_sign[funcName][1:]
+                hints = self.func_sign[funcName][0]["hints"] 
+                        
+            returnType = parameters[-1][1]
+            if hints:
+                # performs type checking against parameters and arguments
+                self.callHints(node, funcName, variableName, arguments, parameters, keywords,NestCall,NestArg)
+
+            # No Hints                 
+            else:
+                Nparam = self.callNoHints(node, funcName,variableName, arguments, parameters, keywords,NestCall,NestArg)
+            
+            #obtains data type of return type
+            if returnType!=None:
+                # for functions without type hints and returns a variable or a object attribute
+                if isinstance(returnType, ast.Name) or isinstance(returnType, ast.Attribute):
+                    if isinstance(returnType,ast.Attribute):
+                        nodeName = returnType.attr
+                        if nodeName in self.objectAttr[funcName[2]]:
+                            returnType = self.objectAttr[funcName[2]][nodeName]["type"]
+                    else:
+                        nodeName = returnType.id
+                        if Nparam == None:
+                            returnType = None
+                        else:
+                            if nodeName in Nparam:
+                                returnType = Nparam[nodeName]["type"]
+                            elif nodeName in self.variables:
+                                returnType = self.variables[nodeName]["type"]
+                            else:
+                                returnType = None
+                       
+                elif isinstance(returnType, ast.BinOp):
+                    returnType=self.extract(returnType,Nparam, returnV=True)
+                elif isinstance(returnType, ast.Call):
+                     # give call arguments its data type
+                    ArgT=[]
+                    if len(returnType.keywords) == 0: 
+                        callArgs = returnType.args
+                        nestsign = self.func_sign[returnType.func.id][1:-1]
+                        count= 0
+                        for x in callArgs:
+                            #needs amended same as below
+                            # if the arguments are variables in the previous function
+                            checker= False
+                            count+=1
+                            if isinstance(x , ast.Name):
+                                if x.id in Nparam:
+                                    ArgT.append((x.id,Nparam[x.id]))
+                                else:
+                                    for param in parameters:
+                                        if x.id in param[0]:
+                                            value= {'type':param[1], 'line':returnType.lineno}
+                                            ArgT.append((x.id,value))
+                                            checker= True
+                                            break
+                                    if not checker:
+                                        reportData.append((x.id, returnType.lineno,4))
+                            else:
+                                constant ={'type':type(ast.literal_eval(x)),
+                                    'line': returnType.lineno}
+                                ArgT.append((nestsign[count-1],constant))
+                                
+                    else:
+                        callArgs = returnType.keywords
+                        for x in callArgs:
+                            if isinstance(x.value, ast.Name):
+                                if x.value.id in Nparam:
+                                    ArgT.append((x.arg,Nparam[x.value.id]))
+                                else:
+                                    reportData.append((x.arg, returnType.lineno,4))
+                            else:
+                                constant ={'type':type(ast.literal_eval(x.value)),
+                                 'line': returnType.lineno}
+                                ArgT.append((x.arg,constant))
+                    print("going to nest")
+                    print("argt",ArgT)
+                    returnType = self.Call(returnType, NestCall=True,NestArg= ArgT, variableName=variableName)
+
+            # if in a nested call, returns the return type of a nested call
+            if NestCall:
+                return returnType              
+            self.duplicateCheck(variableName,line,returnType, self.variables) 
+                
+        else:
+            returnType = self.returnLookUp(funcName)
+            if returnType == None:
+                reportData.append((line, 7))
+            elif isinstance(returnType, str):
+                if "class_" in returnType:
+                    parameters = self.classDef[returnType]['__init__'][1:]
+                    hints = self.classDef[returnType]['__init__'][0]['hints']
+                    if hints:
+                        self.callHints(node, funcName, variableName, arguments, parameters, keywords,NestCall,NestArg)
+                    else:
+                        parameters = self.callNoHints(node, funcName,variableName, arguments, parameters, keywords,NestCall,NestArg)
+                    self.objectAttr[variableName] =  parameters
+                    self.duplicateCheck(variableName,line,returnType, self.variables) 
+            
+            else:
+                self.duplicateCheck(variableName,line,returnType, self.variables) 
+
 #======================================= validation ==============================
 
     #TODO: differentiate between mismatches ie 
@@ -353,6 +528,7 @@ class vis(ast.NodeVisitor):
                 variablesdict[name]= {'type':nodetype,'line':line}
         else:
             variablesdict[name]= {'type':nodetype,'line':line}
+        return dup, nodetype
 
 def report(reportData):
     
@@ -364,6 +540,7 @@ def report(reportData):
     4) uninitialized variable
     5) type mismatch for binary operations not recommended
     6) type mismatch for binary operations not recommended (return ver)
+    7) function node defined
     '''
     if len(reportData)!=0:
         for data in reportData:
@@ -386,7 +563,9 @@ def report(reportData):
                 print(f"The components of '{data[0]}' on line {data[1]} performs a maths operation on different types and is not recomended ")
             
             elif data[-1] == 6:
-                print(f"components of the return on line {data[0]} performs a maths operation on different types and is not recomended ")
+                print(f"Components of the return on line {data[0]} performs a maths operation on different types and is not recomended ")
+            elif data[-1] ==7:
+                print(f"The function called at line {data[0]} is either undefined or is a built-in function not in the pre-loaded list")
     else:
         print("No issues found")
 
@@ -401,13 +580,22 @@ root = tree[0].item
 for n in root.body:
     c.visit(n)
 
-    
-print("\nGlobal variables")
+print("\nFunction signatures:")
+for k,v in c.func_sign.items():
+    print(k,":",v)
+
+print("\nClass Definitions:")
+for k,v in c.classDef.items():
+    print(k,":")
+    for l,m in v.items():
+        print(f"\t {l} :{m}")
+
+print("\nGlobal variables:")
 for k,v in c.variables.items():
     print(k,':',v)
 
-print("\nFuncion signatures")
-for k,v in c.func_sign.items():
+print("\nDefined object attributes:")
+for k,v in c.objectAttr.items():
     print(k,":",v)
 
 print("\nPotential errors found:")

@@ -3,6 +3,8 @@ class Cat:
         self.name = inputName
     def meow(self):
         print('meow!')
+    def baby(self):
+        print("kitty")
 
 class Dog:
     def __init__(self, inputName):
@@ -13,7 +15,7 @@ class Dog:
         print("puppy")
 
 def testMethod(animal):
-    animal.woof()
+    animal.meow()
 
 if __name__ == '__main__':
     dog = Cat()

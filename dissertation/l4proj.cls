@@ -49,9 +49,9 @@
 \usepackage[style]{abstract} % abstract styling
 
 % set bibliography styling
-\usepackage{natbib}
-\bibpunct{(}{)}{;}{a}{}{;}
+\usepackage{cite}
 
+\usepackage{float}
 
 \usepackage{etoolbox}
 \usepackage[compact]{titlesec} % section heading formatting

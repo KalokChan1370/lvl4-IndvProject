@@ -1,0 +1,2 @@
+# Level 4 individual project
+My project for University of Glasgow, on creating a static analyser for the dynamically typed language Python. The analyser would perform type checks in provided source codes on used variables, while flagging them when data conflicts occur. These conflicts are identified by comparing the variables to a predetermined rule set.

@@ -11,11 +11,7 @@
 *.cb
 *.cb2
 .*.lb
-l4proj*.pdf
 
-test/
-
-bad_l4proj*.*
 
 ## Intermediate documents:
 *.dvi
@@ -25,9 +21,6 @@ bad_l4proj*.*
 # *.ps
 # *.eps
 # *.pdf
-
-## Generated if empty string is given at "Please type another file name for output:"
-.pdf
 
 ## Bibliography auxiliary files (bibtex/biblatex/biber):
 *.bbl
